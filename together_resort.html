@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOGETHER — Private Resort</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@500;600&display=swap');
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101820;color:#f3eee4;font-family:'DM Sans',sans-serif}canvas{display:block}
+.hidden{display:none!important}
+#join{position:fixed;inset:0;z-index:10;display:grid;place-items:center;padding:20px;background:linear-gradient(110deg,#071319e8,#07131955),radial-gradient(circle at 75% 20%,#597d80,#152b32 55%,#101820)}
+.card{width:min(440px,100%);padding:34px;border:1px solid #ffffff28;border-radius:22px;background:#091419e8;backdrop-filter:blur(18px);box-shadow:0 24px 90px #0008}
+.eyebrow{color:#d9b77b;letter-spacing:.19em;font-size:10px;font-weight:700}h1{margin:12px 0 8px;font:600 52px 'Playfair Display',serif;letter-spacing:.04em}h1 span,.brand span{color:#d9b77b}.intro{color:#b9c0c1;line-height:1.6;margin:0 0 24px}
+label{display:block;font-size:12px;margin:14px 0 7px}input{width:100%;border:1px solid #ffffff26;border-radius:10px;background:#ffffff0c;color:white;padding:13px;outline:none;font:inherit}input:focus{border-color:#d9b77b}
+button{border:0;border-radius:10px;background:#d9b77b;color:#172126;font-weight:700;padding:12px 16px;cursor:pointer}#enter{width:100%;margin-top:18px}.note,.error{font-size:11px;line-height:1.5;color:#b9c0c1}.error{color:#ff9c91;min-height:16px}
+#ui{position:fixed;inset:0;z-index:2;pointer-events:none}.top{height:66px;display:flex;justify-content:space-between;align-items:center;padding:0 24px;background:linear-gradient(#071319bb,transparent)}.brand{font:600 22px 'Playfair Display',serif;letter-spacing:.08em}.room{font-size:10px;letter-spacing:.14em}.room b{color:#d9b77b}
+.hint{position:absolute;top:78px;left:50%;transform:translateX(-50%);background:#07131999;border-radius:20px;padding:8px 12px;font-size:10px;white-space:nowrap}
+.actions{position:absolute;right:16px;top:48%;display:flex;flex-direction:column;gap:8px;pointer-events:auto}.actions button{font-size:11px;padding:10px 13px}.ghost{background:#14252bdc;color:#f3eee4;border:1px solid #ffffff30}
+.chat{position:absolute;left:16px;bottom:16px;width:min(310px,calc(100vw - 32px));background:#071319d9;border:1px solid #ffffff24;border-radius:14px;padding:12px;pointer-events:auto;backdrop-filter:blur(12px)}
+.chathead{font-size:10px;letter-spacing:.14em;color:#d9b77b;display:flex;justify-content:space-between}.chathead span{color:#b9c0c1}.log{height:96px;overflow:auto;padding:8px 0;font-size:12px}.line{margin:5px 0;overflow-wrap:anywhere}.line b{color:#d9b77b}form{display:flex;gap:7px}form input{min-width:0;padding:9px;font-size:11px}form button{font-size:11px;padding:8px 11px}.foot{position:absolute;right:18px;bottom:20px;font-size:10px;color:#ffffff99}
+#mobileControls{display:none;position:absolute;left:50%;bottom:18px;transform:translateX(-50%);pointer-events:auto;gap:8px}
+#mobileControls button{padding:12px 16px;background:#14252be8;color:white;border:1px solid #ffffff33}
+@media(max-width:650px){.top{height:55px;padding:0 14px}.brand{font-size:19px}.hint{top:64px;font-size:9px;max-width:94%;overflow:hidden}.actions{top:auto;bottom:155px;right:10px}.actions button{padding:9px}.foot{display:none}.card{padding:26px 22px}#mobileControls{display:flex}}
+</style>
+</head>
+<body>
+<div id="join"><div class="card">
+<div class="eyebrow">A PRIVATE MULTIPLAYER ESCAPE</div><h1>TOGETHER<span>.</span></h1>
+<p class="intro">Explore a tropical resort in a browser-based 3D experience.</p>
+<label>Your display name</label><input id="name" maxlength="18" value="Guest" placeholder="Your name">
+<label>Private room code</label><input id="code" maxlength="8" placeholder="e.g. SUNSET24">
+<label>Multiplayer server URL <span style="color:#9ca9a9">(optional for preview)</span></label><input id="server" placeholder="https://your-server.example.com">
+<button id="enter">Enter resort</button><p id="err" class="error"></p>
+<p class="note">This HTML opens as a 3D preview. Real multiplayer requires your Socket.IO server URL.</p>
+</div></div>
+<div id="ui" class="hidden">
+<div class="top"><div class="brand">TOGETHER<span>.</span></div><div class="room">ROOM <b id="roomLabel">PREVIEW</b> <span id="status">● OFFLINE PREVIEW</span></div></div>
+<div class="hint">WASD / arrows to move · Drag to look · E to wave · Q to sit</div>
+<div class="actions"><button id="wave">Wave</button><button id="sit">Sit / Stand</button><button id="leave" class="ghost">Leave</button></div>
+<div class="chat"><div class="chathead">ROOM CHAT <span id="count">PREVIEW</span></div><div id="log" class="log"></div><form id="chatForm"><input id="msg" maxlength="240" placeholder="Write a message…" autocomplete="off"><button>Send</button></form></div>
+<div class="foot">3D resort preview · Multiplayer needs server connection</div>
+<div id="mobileControls"><button data-key="KeyW">↑</button><button data-key="KeyA">←</button><button data-key="KeyS">↓</button><button data-key="KeyD">→</button></div>
+</div>
+<script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+<script type="module">
+import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js";
+const $=id=>document.getElementById(id);let socket=null,scene,camera,renderer,clock,selfId="local",yaw=0,pitch=-.12,drag=false,lx=0,ly=0,keys={},players=new Map(),sitting=false,action="idle",actionEnd=0,lastSend=0;
+const mat=(c,r=.8,m=0)=>new THREE.MeshStandardMaterial({color:c,roughness:r,metalness:m});
+function box(x,y,z,sx,sy,sz,m){let o=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),m);o.position.set(x,y,z);o.castShadow=true;o.receiveShadow=true;scene.add(o);return o}
+function build(){
+ scene=new THREE.Scene();scene.background=new THREE.Color(0x9bb9b9);scene.fog=new THREE.Fog(0x9bb9b9,30,80);
+ camera=new THREE.PerspectiveCamera(65,innerWidth/innerHeight,.1,120);
+ renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:"high-performance"});renderer.setSize(innerWidth,innerHeight);renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.shadowMap.enabled=true;renderer.shadowMap.type=THREE.PCFSoftShadowMap;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.1;document.body.appendChild(renderer.domElement);
+ scene.add(new THREE.HemisphereLight(0xc9e7e5,0x53483b,2));let sun=new THREE.DirectionalLight(0xffd7a0,3);sun.position.set(-8,14,7);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);scene.add(sun);
+ let wall=mat(0xe7dfd0),wood=mat(0x9a8066),dark=mat(0x263a3b),glass=new THREE.MeshPhysicalMaterial({color:0xa7d1d2,transparent:true,opacity:.2,roughness:.08});
+ box(0,-.15,0,22,.3,20,wood);box(0,3,-9.8,22,6,.25,wall);box(-10.9,3,0,.25,6,20,wall);box(10.9,3,0,.25,6,20,wall);box(0,6,0,22,.2,20,dark);
+ box(0,3,9.72,21,5.7,.08,glass);box(0,-1.5,25,100,.2,45,mat(0x2e7f88,.28,.12));box(0,-.02,13.3,19,.18,6,mat(0xddd5c5));box(0,.65,16.2,19,.12,.12,mat(0xe8e5dc));
+ box(-5,.35,-4.4,5.2,.7,3.8,mat(0x493d37));box(-5,.78,-4.4,5.05,.22,3.7,mat(0xf0e9db));box(-5,1.5,-6.25,5.2,1.6,.25,mat(0x59483c));for(let i=0;i<2;i++)box(-6.2+i*2.3,1,-5.65,1.7,.25,1.1,mat(0xffffff));
+ box(-1.4,.55,2.3,4.2,.8,1.3,mat(0x526b65));box(-1.4,1.2,1.7,4.2,1.2,.35,mat(0x526b65));box(-1.4,.45,4.4,2.7,.18,1.3,mat(0x6c4d35));box(-1.4,.02,3.4,6,.06,4.2,mat(0xc7ad83));box(7,.7,-5,2.1,1.4,1,mat(0x735b45));
+ for(let [x,z] of [[8,5],[-8,5],[8,-7],[-9,-7]]){let pot=new THREE.Mesh(new THREE.CylinderGeometry(.35,.45,.7,12),mat(0x8d6248));pot.position.set(x,.35,z);scene.add(pot);for(let j=0;j<5;j++){let leaf=new THREE.Mesh(new THREE.ConeGeometry(.22,1.7,7),mat(0x426d52));leaf.position.set(x+(Math.random()-.5)*.5,1.45,z+(Math.random()-.5)*.5);scene.add(leaf)}}
+ for(let x=-7;x<=7;x+=7){let l=new THREE.PointLight(0xffe0b5,9,9);l.position.set(x,5.5,-1);scene.add(l)}
+ clock=new THREE.Clock();addEventListener("resize",resize);
+ renderer.domElement.addEventListener("pointerdown",e=>{drag=true;lx=e.clientX;ly=e.clientY;renderer.domElement.setPointerCapture(e.pointerId)});renderer.domElement.addEventListener("pointerup",()=>drag=false);
+ renderer.domElement.addEventListener("pointermove",e=>{if(!drag)return;yaw-=(e.clientX-lx)*.004;pitch=THREE.MathUtils.clamp(pitch-(e.clientY-ly)*.003,-.65,.35);lx=e.clientX;ly=e.clientY});
+ addPlayer({id:"local",name:$("name").value||"Guest",x:0,z:3});
+ animate();
+}
+function addPlayer(p){let g=new THREE.Group(),shirt=mat(0xb68c59),skin=mat(0xc99370),pants=mat(0x26323a);let body=new THREE.Mesh(new THREE.CapsuleGeometry(.34,.75,5,10),shirt);body.position.y=1.12;g.add(body);let head=new THREE.Mesh(new THREE.SphereGeometry(.27,16,12),skin);head.position.y=1.86;g.add(head);for(let x of [-.17,.17]){let leg=new THREE.Mesh(new THREE.CapsuleGeometry(.12,.58,4,8),pants);leg.position.set(x,.42,0);g.add(leg)}let c=document.createElement("canvas");c.width=512;c.height=128;let ctx=c.getContext("2d");ctx.fillStyle="white";ctx.font="bold 42px Arial";ctx.textAlign="center";ctx.fillText(p.name,256,75);let sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true}));sp.scale.set(2.2,.55,1);sp.position.y=2.55;g.add(sp);scene.add(g);players.set(p.id,{group:g,name:p.name,target:new THREE.Vector3(p.x,0,p.z),action:"idle"});}
+function resize(){if(!camera)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)}
+function say(n,t){let d=document.createElement("div");d.className="line";let b=document.createElement("b");b.textContent=n+": ";d.append(b,document.createTextNode(t));$("log").append(d);$("log").scrollTop=$("log").scrollHeight}
+function animate(){requestAnimationFrame(animate);if(!renderer)return;let dt=Math.min(clock.getDelta(),.05),me=players.get(selfId);if(me){let f=new THREE.Vector3(-Math.sin(yaw),0,-Math.cos(yaw)),r=new THREE.Vector3(Math.cos(yaw),0,-Math.sin(yaw)),m=new THREE.Vector3();if(keys.KeyW||keys.ArrowUp)m.add(f);if(keys.KeyS||keys.ArrowDown)m.sub(f);if(keys.KeyD||keys.ArrowRight)m.add(r);if(keys.KeyA||keys.ArrowLeft)m.sub(r);if(m.lengthSq()&&!sitting){m.normalize().multiplyScalar(5.2*dt);me.group.position.add(m);me.group.position.x=THREE.MathUtils.clamp(me.group.position.x,-9.5,9.5);me.group.position.z=THREE.MathUtils.clamp(me.group.position.z,-8.5,15.5);me.group.rotation.y=Math.atan2(m.x,m.z);me.action="walk"}else me.action=sitting?"sit":(action==="wave"&&performance.now()<actionEnd?"wave":"idle");let target=new THREE.Vector3(me.group.position.x+Math.sin(yaw)*7,2.8+pitch*3,me.group.position.z+Math.cos(yaw)*7);camera.position.lerp(target,1-Math.pow(.001,dt));camera.lookAt(me.group.position.x,1.15,me.group.position.z);if(socket&&socket.connected&&performance.now()-lastSend>50){socket.emit("player-update",{x:me.group.position.x,y:0,z:me.group.position.z,rotation:me.group.rotation.y,action:me.action});lastSend=performance.now()}}renderer.render(scene,camera)}
+function start(){ $("join").classList.add("hidden");$("ui").classList.remove("hidden");$("roomLabel").textContent=$("code").value.trim().toUpperCase()||"PREVIEW";build();say("SYSTEM","3D resort preview loaded.");let url=$("server").value.trim();if(url&&window.io){socket=io(url);socket.on("connect",()=>{$("status").textContent="● CONNECTED";socket.emit("join-room",{roomCode:$("code").value.trim().toUpperCase(),name:$("name").value.trim()||"Guest"})});socket.on("connect_error",()=>say("SYSTEM","Could not connect to multiplayer server."));socket.on("join-error",m=>say("SYSTEM",m));socket.on("joined-room",d=>{selfId=d.selfId;$("roomLabel").textContent=d.roomCode;$("count").textContent=d.players.length+" / 2";say("SYSTEM","Connected to multiplayer room.")});socket.on("chat-message",m=>say(m.name,m.text));socket.on("player-joined",p=>say("SYSTEM",p.name+" joined."));socket.on("player-left",()=>say("SYSTEM","The other player left."));socket.on("room-count",n=>$("count").textContent=n+" / 2")} }
+$("enter").onclick=()=>{if(!$("code").value.trim())$("code").value="SUNSET24";start()};
+addEventListener("keydown",e=>{keys[e.code]=true;if(e.code==="KeyE"){action="wave";actionEnd=performance.now()+1100}if(e.code==="KeyQ")sitting=!sitting});addEventListener("keyup",e=>keys[e.code]=false);
+$("wave").onclick=()=>{action="wave";actionEnd=performance.now()+1100};$("sit").onclick=()=>sitting=!sitting;$("leave").onclick=()=>location.reload();
+$("chatForm").onsubmit=e=>{e.preventDefault();let i=$("msg"),v=i.value.trim();if(!v)return;if(socket&&socket.connected)socket.emit("chat-message",v);else say($("name").value||"You",v);i.value=""};
+document.querySelectorAll("[data-key]").forEach(b=>{let k=b.dataset.key;b.addEventListener("pointerdown",e=>{e.preventDefault();keys[k]=true});["pointerup","pointerleave","pointercancel"].forEach(ev=>b.addEventListener(ev,()=>keys[k]=false))});
+</script></body></html>
